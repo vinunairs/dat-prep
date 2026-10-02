@@ -76,7 +76,7 @@
     if (lab) box.append(views);
     else {
       const seg = el("div", { class: "seg", role: "group", "aria-label": "View" });
-      viewBtns = [["1 · Follow a glucose", showOverview], ["2 · Watch the chain", showEtc]].map(([t, fn], i) =>
+      viewBtns = [["Follow a glucose", showOverview], ["Watch the chain", showEtc]].map(([t, fn], i) =>
         el("button", { type: "button", "aria-pressed": String(i === 0), onclick: () => { viewBtns.forEach((b, j) => b.setAttribute("aria-pressed", String(i === j))); fn(); } }, t));
       seg.append(...viewBtns);
       box.append(seg, views);

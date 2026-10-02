@@ -2,6 +2,8 @@
 
 Dental Admission Test prep, live at https://vinunairs.github.io/dat-prep/ (GitHub Pages from `main`). A plain static site: no build step, no server.
 
+- **Navigation:** three tabs: Today (Up next, this week, start-here checklist, road to test day), Learn (sections, topics, lessons, How the DAT works), Me (test details, skills, notes, backup, settings). Practice and Tests come back as tabs when their content exists. Notes open from the top bar; on wide screens a lesson's notes stay docked beside it.
+- **Design:** tokens at the top of `css/dat.css` (light and dark). One bold surface (Up next); section colors are accents only; Manrope for the interface, Source Serif 4 for lesson reading text. Checked with axe-core against WCAG 2.2 AA.
 - **Blueprint:** `js/syllabus.js`, from the ADA 2026 DAT Candidate Guide (updated 08/04/2026), including the updated Organic Chemistry outline.
 - **Plan:** built backward from the test date: Learn → Practice → Full-length tests → Final days. Science topics are spread evenly across the learning weeks, new and shaky topics first.
 - **Progress:** saved in the browser (localStorage key `dat-prep-v1`), with Back up / Restore under Me. Keep the key and only add fields (with defaults in `blank()`), so saved progress always loads.

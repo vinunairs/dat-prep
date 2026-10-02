@@ -40,18 +40,22 @@
     function draw() {
       host.textContent = "";
       host.append(
-        el("button", { type: "button", class: "btn ghost small", style: "margin:-6px 0 6px -10px", onclick: () => ctx.go("learn", lesson.section) }, "‹ " + ctx.sectionName(lesson.section)),
-        el("div", { class: "eyebrow", text: ctx.topicName(lesson.topic) + " · about " + lesson.minutes + " min" }),
-        el("h1", { text: lesson.title }),
-        el("p", { class: "muted", text: lesson.intro }),
-        el("div", { class: "progress-dots", "aria-label": "Lesson progress" }, stages.map((s) => el("span", { class: s.n <= p.st ? "on" : "" }))));
+        el("nav", { class: "crumbs", "aria-label": "Breadcrumb" },
+          el("button", { type: "button", class: "back", onclick: () => ctx.go("learn") }, "Learn"), el("span", { "aria-hidden": "true", text: "›" }),
+          el("button", { type: "button", class: "back", onclick: () => ctx.go("learn", lesson.section) }, ctx.sectionName(lesson.section)), el("span", { "aria-hidden": "true", text: "›" }),
+          el("span", { class: "here", text: ctx.topicName(lesson.topic) })),
+        el("h1", { class: "lesson-title", text: lesson.title }),
+        el("p", { class: "lede", text: lesson.intro }),
+        el("div", { class: "lprog" },
+          el("span", { class: "small", text: p.done ? "Lesson complete · about " + lesson.minutes + " min" : "Step " + Math.min(4, p.st + 1) + " of 4: " + stages[Math.min(3, p.st)].title + " · about " + lesson.minutes + " min" }),
+          el("div", { class: "progress-dots", "aria-hidden": "true" }, stages.map((s) => el("span", { class: s.n <= p.st ? "on" : "" })))));
 
       // Before you start: what the lesson covers and what she'll be able to do after it.
       if (lesson.covers || lesson.outcomes) host.append(el("details", { class: "card overview", open: !p.st },
-        el("summary", {}, el("h2", { style: "margin:0", text: "Before you start" }), el("span", { class: "tiny muted", text: p.st ? "Show" : "" })),
+        el("summary", {}, el("h2", { style: "margin:0", text: "Before you start" }), el("span", { class: "small muted", text: p.st ? "Show" : "Hide" })),
         el("div", { class: "grid2", style: "margin-top:10px" },
-          lesson.covers ? el("div", {}, el("div", { class: "eyebrow", text: "What this lesson covers" }), el("ul", {}, lesson.covers.map((x) => el("li", { text: x })))) : null,
-          lesson.outcomes ? el("div", {}, el("div", { class: "eyebrow", text: "By the end, you'll be able to" }), el("ul", { class: "outcomes" }, lesson.outcomes.map((x) => el("li", { text: x })))) : null),
+          lesson.covers ? el("div", {}, el("h3", { text: "What this lesson covers" }), el("ul", {}, lesson.covers.map((x) => el("li", { text: x })))) : null,
+          lesson.outcomes ? el("div", {}, el("h3", { text: "By the end, you'll be able to" }), el("ul", { class: "outcomes" }, lesson.outcomes.map((x) => el("li", { text: x })))) : null),
         lesson.onTest ? el("p", { class: "small muted", style: "margin:8px 0 0" }, el("strong", { text: "On the DAT: " }), lesson.onTest) : null,
         el("p", { class: "tiny muted", style: "margin:8px 0 0", text: "Four steps, about " + lesson.minutes + " minutes: Explore → " + (lesson.ruleTitle || "The rule") + " → Walk through it → Your turn." })));
 
@@ -60,7 +64,7 @@
         const box = el("div", { class: "explore" });
         lesson.explore(box, ctx);
         return el("div", {}, box, el("div", { class: "row", style: "margin-top:12px" },
-          el("button", { type: "button", class: "btn primary", onclick: () => unlock(1) }, p.st >= 1 ? "Done" : "I've got the idea"),
+          p.st >= 1 ? null : el("button", { type: "button", class: "btn next", onclick: () => unlock(1) }, "I've got the idea"),
           p.st >= 1 ? null : el("button", { type: "button", class: "btn ghost small", onclick: () => unlock(1) }, "Skip this step")));
       }));
 
@@ -68,13 +72,13 @@
       host.append(stageCard(stages[1], () => {
         const body = el("div", { class: "rule" });
         body.innerHTML = lesson.rule.html;
-        const keys = el("div", { class: "keys" }, el("div", { class: "eyebrow", text: "Key points" }),
+        const keys = el("div", { class: "keys" }, el("h3", { text: "Key points" }),
           lesson.rule.keys.map((k) => el("div", { class: "keypt" }, el("span", { text: k }),
-            el("button", { type: "button", class: "btn small ghost", "aria-label": "Save to notes: " + k, onclick: (e) => { ctx.notes.append(lesson.id, "• " + k); e.currentTarget.textContent = "Saved ✓"; e.currentTarget.disabled = true; } }, "＋ Notes"))));
+            el("button", { type: "button", class: "btn small ghost", "aria-label": "Add to notes: " + k, onclick: (e) => { ctx.notes.append(lesson.id, "• " + k); e.currentTarget.textContent = "Added ✓"; e.currentTarget.disabled = true; } }, "Add to notes"))));
         // Optional hands-on check that uses what the rule just taught: predict, then watch.
         let lab = null;
         if (lesson.lab) { const lb = el("div"); lesson.lab(lb, ctx); lab = el("div", { class: "lab" }, el("h3", { text: "Try it: predict, then watch" }), el("p", { class: "small muted", text: lesson.labIntro || "Use what you just learned. Make your prediction, then see what happens." }), lb); }
-        return el("div", {}, body, keys, lab, p.st >= 2 ? null : el("button", { type: "button", class: "btn primary", style: "margin-top:12px", onclick: () => unlock(2) }, "Got it, walk me through one"));
+        return el("div", {}, body, keys, lab, p.st >= 2 ? null : el("button", { type: "button", class: "btn " + (lesson.lab ? "next" : "primary"), style: "margin-top:12px", onclick: () => unlock(2) }, "Got it, walk me through one"));
       }));
 
       // 3. Walk through it
@@ -83,11 +87,18 @@
       // 4. Your turn
       host.append(stageCard(stages[3], () => solo()));
 
-      if (p.done) host.append(el("section", { class: "card done-card" },
-        el("h2", { text: "Lesson complete" }),
-        el("p", { class: "muted", text: "Best round: " + p.best + " of " + (lesson.soloCount || 3) + ". Come back for another round any time: the questions are new every time." }),
-        el("div", { class: "row" }, el("button", { type: "button", class: "btn", onclick: () => ctx.notes.open(lesson.id) }, "Review my notes"),
-          el("button", { type: "button", class: "btn primary", onclick: () => ctx.go("learn", lesson.section) }, "Back to " + ctx.sectionName(lesson.section)))));
+      if (p.done) {
+        // Finishing leads somewhere: what changed, and the next lesson in her plan.
+        const m = ctx.mastery(lesson.topic), nx = ctx.nextLesson(lesson.id);
+        host.append(el("section", { class: "card done-card" },
+          el("h2", { text: "Lesson complete" }),
+          el("p", {}, m.real ? [el("strong", { text: ctx.topicName(lesson.topic) + ": " + m.v + "%" }), " (" + m.src + "). "]
+            : "You've answered " + ((ctx.state.skills[lesson.topic] || {}).n || 0) + " questions on " + ctx.topicName(lesson.topic) + "; your skill score appears after 5. ",
+            "Best round: " + p.best + " of " + (lesson.soloCount || 3) + ". Another round any time gives you new questions."),
+          el("div", { class: "row" },
+            nx ? el("button", { type: "button", class: "btn primary", onclick: () => ctx.go("learn", nx.id) }, "Next up: " + nx.title) : el("button", { type: "button", class: "btn primary", onclick: () => ctx.go("learn", lesson.section) }, "Back to " + ctx.sectionName(lesson.section)),
+            el("button", { type: "button", class: "btn", onclick: () => ctx.openNotes(lesson.id) }, "Review my notes"))));
+      }
     }
 
     function walk() {
@@ -151,7 +162,7 @@
           if (!ok) e.currentTarget.classList.add("no");
           fb.append(el("p", { class: ok ? "good" : "bad", html: ok ? "<b>Correct.</b>" : "<b>Not this time.</b> The answer is " + LETTERS[q.a] + "." }), el("div", { class: "ex", html: q.e }),
             el("button", { type: "button", class: "btn primary", style: "margin-top:10px", onclick: () => { round.i++; show(); } }, round.i + 1 < n ? "Next question" : "See my result"));
-          if (!ok && q.note) fb.append(el("button", { type: "button", class: "btn small ghost", onclick: (ev) => { ctx.notes.append(lesson.id, "• Missed: " + q.note); ev.currentTarget.textContent = "Saved ✓"; ev.currentTarget.disabled = true; } }, "＋ Save this to notes"));
+          if (!ok && q.note) fb.append(el("button", { type: "button", class: "btn small ghost", onclick: (ev) => { ctx.notes.append(lesson.id, "• Missed: " + q.note); ev.currentTarget.textContent = "Added ✓"; ev.currentTarget.disabled = true; } }, "Add this to notes"));
         } }, el("span", { class: "L", text: LETTERS[i] }), el("span", { html: o }))));
         box.append(el("div", { class: "tiny muted", text: "Question " + (round.i + 1) + " of " + n }),
           el("div", { class: "q", html: q.q }), q.fig ? el("div", { class: "fig", html: q.fig }) : null, opts, fb);

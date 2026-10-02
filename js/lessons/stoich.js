@@ -74,7 +74,7 @@
     explore(box, ctx) {
       const { el } = ctx;
       const holder = el("div");
-      const views = [["1 · Molecules", (h) => DATViz.mixer(h, ctx)], ["2 · The mole map", (h) => this.moleMap(h, ctx)]];
+      const views = [["Molecules", (h) => DATViz.mixer(h, ctx)], ["The mole map", (h) => this.moleMap(h, ctx)]];
       const seg = el("div", { class: "seg", role: "group", "aria-label": "View", style: "margin-bottom:10px" }, views.map(([t, fn], i) =>
         el("button", { type: "button", "aria-pressed": String(i === 0), onclick: (e) => { seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget))); holder.textContent = ""; fn(holder); } }, t)));
       box.append(el("p", { text: "Start with molecules you can see: mix two reactants and watch them pair up. Then switch to the mole map to see the same idea in grams and moles." }), seg, holder);
