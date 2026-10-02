@@ -10,3 +10,6 @@ Add a learner (admin, SQL editor):
 
 Their personal link is `https://vinunairs.github.io/dat-prep/?code=NAME-XXXX-XXXX`. Add an email later with
 `update public.dat_learners set email = '…' where first_name = '…';`
+
+Read-only viewing link (for a parent or coach): `https://vinunairs.github.io/dat-prep/?watch=NAME-XXXX-XXXX`.
+It loads the learner's progress, shows a banner, and saves nothing on that device or online.

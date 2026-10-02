@@ -34,7 +34,8 @@
   }
   function load() { try { return merge(blank(), JSON.parse(localStorage.getItem(KEY) || "null")); } catch (e) { return blank(); } }
   let state = load();
-  function save() { state.updatedAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast("Couldn't save on this device (storage is full or blocked)."); } document.dispatchEvent(new Event("dat-saved")); }
+  let readOnly = false; // viewing someone else's progress: nothing is saved anywhere
+  function save() { if (readOnly) return; state.updatedAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast("Couldn't save on this device (storage is full or blocked)."); } document.dispatchEvent(new Event("dat-saved")); }
 
   /* ---------- Helpers ---------- */
   const $ = (s, r = document) => r.querySelector(s);
@@ -246,7 +247,7 @@
     if (open && ta && (!onLesson || ta.dataset.id !== view)) { notes.set(ta.dataset.id, ta.value); closeNotes(); }
     if (onLesson && wide.matches && !state.notesHidden && !$(".notes-panel")) notes.open(view, true);
     document.title = (tab === "today" ? "" : (onLesson ? L.byId[view].title : ({ notes: "Notes", me: "Me", learn: "Learn", practice: "Practice", tests: "Tests" })[tab]) + " · ") + "DAT Prep";
-    if (!state.settings.setup && tab === "today") setTimeout(() => { if (!state.settings.setup) openSetup(); }, 50);
+    if (!state.settings.setup && tab === "today" && !readOnly && !new URLSearchParams(location.search).has("watch")) setTimeout(() => { if (!state.settings.setup && !readOnly) openSetup(); }, 50);
   }
   function paintBar() {
     const left = daysLeft();
@@ -335,7 +336,7 @@
     const hasProgress = Object.keys(state.lessons).length || Object.keys(state.conf).length || Object.values(state.notes).some((n) => n && n.t);
     const lastBk = state.checks.backup ? parseD(state.checks.backup) : null;
     const online = !!(window.DATSync && window.DATSync.code);
-    if (hasProgress && !online && (!lastBk || (parseD(todayISO()) - lastBk) / DAY >= 7))
+    if (hasProgress && !online && !readOnly && (!lastBk || (parseD(todayISO()) - lastBk) / DAY >= 7))
       out.push(el("div", { class: "callout" }, el("div", {}, el("strong", { text: lastBk ? "Time for a backup. " : "Back up your progress. " }), "It's saved only in this browser. A backup file keeps it safe and moves it to another device."),
         el("button", { type: "button", class: "btn small", onclick: backup }, "Back up now")));
 
@@ -638,6 +639,18 @@
     busy: () => !!(window.DATTest && window.DATTest.active),
     // Swap in progress loaded from online (keeps its own timestamp so it isn't re-uploaded as new).
     replace(x) { state = merge(blank(), x); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { } applyTheme(); if (state.settings.setup) closeOverlay(); render(); },
+    // Read-only view of a learner's progress (for a parent or coach). Nothing is saved on this device or online.
+    watch(data, name) {
+      readOnly = true; state = merge(blank(), data || {}); state.settings.setup = true;
+      document.body.classList.add("watching"); closeOverlay(); closeNotes();
+      const b = $("#watchBar") || (() => { const x = el("div", { id: "watchBar", class: "watchbar", role: "status" }); document.body.prepend(x); return x; })();
+      b.textContent = "";
+      b.append(el("span", {}, el("strong", { text: "Viewing " + (name || "a learner") + "'s progress. " }), "Read-only: nothing you do here is saved."),
+        el("button", { type: "button", class: "btn small", onclick: () => { location.href = location.pathname; } }, "Exit"));
+      render();
+    },
+    setOwner(o) { state.owner = o; },
+    get readOnly() { return readOnly; },
     applyName(n) { if (!state.settings.name) { state.settings.name = n; save(); const f = $("#suName"); if (f && !f.value) f.value = n; render(); } }
   };
   document.addEventListener("dat-sync-status", () => { if (tab === "me" && view === "settings" && !$(".overlay") && !(document.activeElement && document.activeElement.id === "codeIn")) render(); });

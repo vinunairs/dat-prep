@@ -60,9 +60,20 @@
       set(navigator.onLine ? "error" : "offline"); return;
     }
     const local = app.state, localMs = local.updatedAt || 0, remoteMs = Number(r.client_updated_ms) || 0;
+    const keepCopy = () => { if (localMs > 0) { try { localStorage.setItem(BACKUP_KEY, JSON.stringify(local)); } catch (e) { } } };
+    // This device's progress belongs to someone else, or to nobody yet: never mix it into this account blindly.
+    if (local.owner !== code && localMs > 0) {
+      if (r.data) { keepCopy(); app.replace(Object.assign({}, r.data, { owner: code })); set("synced"); if (first) app.toast("Your progress is loaded" + (r.name ? ", " + r.name : "")); return; }
+      const who = r.name || "this account";
+      const keep = local.owner ? false : confirm("This device already has DAT Prep progress from before. Add it to " + who + "'s online account?\n\nOK: add it.  Cancel: start " + who + "'s account fresh (the old progress is kept on this device as a backup).");
+      if (!keep) { keepCopy(); const fresh = app.blank(); fresh.owner = code; fresh.settings.name = r.name || ""; app.replace(fresh); }
+      else app.setOwner(code);
+      await push(); return;
+    }
+    if (local.owner !== code) app.setOwner(code);
     if (r.data && remoteMs > localMs + 1000) {
       if (localMs > 0) { try { localStorage.setItem(BACKUP_KEY, JSON.stringify(local)); } catch (e) { } }
-      app.replace(r.data);
+      app.replace(Object.assign({}, r.data, { owner: code }));
       set("synced");
       if (first) app.toast("Your progress is loaded" + (r.name ? ", " + r.name : ""));
     } else if (!r.data || localMs > remoteMs + 1000) {
@@ -82,8 +93,20 @@
   }
   function forget() { setCode(""); set("off"); }
 
+  // Read-only viewing link: …/dat-prep/?watch=CODE. Loads the learner's progress without saving anything.
+  async function watch(code) {
+    const app = window.DATApp;
+    try { const r = await rpc("dat_load", { p_code: code }); app.watch(r.data, r.name); }
+    catch (e) { app.toast(/DAT_CODE_INVALID/.test(e.code || e.message) ? "That viewing link isn't valid." : "Couldn't reach the server. Check the connection and reload."); }
+  }
   function boot() {
-    const u = new URL(location.href), fromLink = u.searchParams.get("code");
+    const u = new URL(location.href), fromLink = u.searchParams.get("code"), watching = u.searchParams.get("watch");
+    if (watching) {
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") watch(watching.trim().toUpperCase()); });
+      watch(watching.trim().toUpperCase());
+      window.DATSync = { useCode() { return false; }, forget() { }, push() { return Promise.resolve(); }, pull() { }, code: "", status: "off", lastSynced: null };
+      return;
+    }
     if (fromLink) { u.searchParams.delete("code"); history.replaceState(null, "", u.pathname + (u.search ? u.search : "") + u.hash); setCode(fromLink.trim().toUpperCase()); }
     document.addEventListener("dat-saved", schedule);
     window.addEventListener("online", () => { if (getCode()) push(); });

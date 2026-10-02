@@ -328,3 +328,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)!important;box-
 .have-code{margin:-4px 0 14px;font-size:14px}
 .codeentry{margin-top:8px}
 #suCode{flex:1;min-width:180px;min-height:44px;padding:8px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface);font:inherit}
+
+/* Read-only viewing banner */
+.watchbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:8px 16px;background:var(--warn-soft);color:var(--ink);border-bottom:1px solid color-mix(in srgb,var(--warn) 40%,transparent);font-size:14px}
+body.watching .appbar{top:44px}
+body.watching #notesBtn,body.watching #syncChip{display:none}
