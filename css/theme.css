@@ -312,3 +312,19 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)!important;box-
 .runbar.sticky{margin-left:0;margin-right:0;padding-left:0;padding-right:0;border-radius:0}
 .today-side>.card{margin:0}
 .upnext .upnext-t{color:var(--ink)}
+
+/* Online saving */
+.pill.sync{gap:6px;color:var(--good)}
+.pill.sync::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--good)}
+.pill.sync[data-state="syncing"]{color:var(--ink-2)}
+.pill.sync[data-state="syncing"]::before{background:var(--ink-3)}
+.pill.sync[data-state="error"],.pill.sync[data-state="offline"]{color:var(--warn)}
+.pill.sync[data-state="error"]::before,.pill.sync[data-state="offline"]::before{background:var(--warn)}
+.codebox{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;background:var(--surface-2);border-radius:12px;padding:12px 14px;margin:0 0 12px}
+.codebox strong{font-size:18px;letter-spacing:.06em}
+.chip.good{background:var(--good-soft);color:var(--good)}
+#codeIn{flex:1;min-width:200px;min-height:44px;padding:8px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface);font:inherit}
+@media (max-width:520px){.pill.sync{font-size:0;padding:0 11px}.pill.sync::before{width:10px;height:10px}}
+.have-code{margin:-4px 0 14px;font-size:14px}
+.codeentry{margin-top:8px}
+#suCode{flex:1;min-width:180px;min-height:44px;padding:8px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface);font:inherit}

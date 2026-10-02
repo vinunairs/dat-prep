@@ -34,7 +34,7 @@
   }
   function load() { try { return merge(blank(), JSON.parse(localStorage.getItem(KEY) || "null")); } catch (e) { return blank(); } }
   let state = load();
-  function save() { state.updatedAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast("Couldn't save on this device (storage is full or blocked)."); } }
+  function save() { state.updatedAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast("Couldn't save on this device (storage is full or blocked)."); } document.dispatchEvent(new Event("dat-saved")); }
 
   /* ---------- Helpers ---------- */
   const $ = (s, r = document) => r.querySelector(s);
@@ -246,7 +246,7 @@
     if (open && ta && (!onLesson || ta.dataset.id !== view)) { notes.set(ta.dataset.id, ta.value); closeNotes(); }
     if (onLesson && wide.matches && !state.notesHidden && !$(".notes-panel")) notes.open(view, true);
     document.title = (tab === "today" ? "" : (onLesson ? L.byId[view].title : ({ notes: "Notes", me: "Me", learn: "Learn", practice: "Practice", tests: "Tests" })[tab]) + " · ") + "DAT Prep";
-    if (!state.settings.setup && tab === "today") setTimeout(openSetup, 50);
+    if (!state.settings.setup && tab === "today") setTimeout(() => { if (!state.settings.setup) openSetup(); }, 50);
   }
   function paintBar() {
     const left = daysLeft();
@@ -273,6 +273,14 @@
       el("header", {}, el("h2", { id: "suT", text: st.setup ? "Your test and plan" : "Welcome to DAT Prep" }),
         st.setup ? el("button", { type: "button", class: "btn small ghost", onclick: closeOverlay }, "Close") : null),
       st.setup ? null : el("p", { class: "muted small", text: "Three quick answers and your study plan builds itself around your test date. You can change them any time under Me." }),
+      st.setup || !window.DATSync || window.DATSync.code ? null : (() => {
+        // Started on another device? Load that progress with the personal code instead.
+        const box = el("div", { class: "codeentry", hidden: true });
+        const inp = el("input", { type: "text", id: "suCode", placeholder: "For example, NIRA-XXXX-XXXX", autocomplete: "off", "aria-label": "Personal code", style: "text-transform:uppercase" });
+        const m = el("p", { class: "err", role: "alert" });
+        box.append(el("div", { class: "row" }, inp, el("button", { type: "button", class: "btn", onclick: async () => { m.textContent = "Checking…"; const ok = await window.DATSync.useCode(inp.value); if (ok) { m.textContent = ""; closeOverlay(); render(); } else m.textContent = "That code didn't work. Check it and try again."; } }, "Load my progress")), m);
+        return el("div", { class: "have-code" }, el("button", { type: "button", class: "linkbtn", onclick: (e) => { box.hidden = false; e.currentTarget.hidden = true; inp.focus(); } }, "Already started on another device? Enter your personal code"), box);
+      })(),
       el("label", { class: "f", for: "suName" }, "First name", name),
       el("div", { class: "f" }, el("label", { for: "suDate" }, "DAT test date"),
         el("span", { class: "hint", id: "suDateHint" }, "Not booked yet? Pick a target date, or ", unsure, "."), date),
@@ -326,7 +334,8 @@
       out.push(el("div", { class: "callout warn" }, el("div", {}, el("strong", { text: "Tight timeline. " }), "Most students study 200–300 hours. You have about " + hoursTotal + ". Add hours each week, or consider a later date (rescheduling fees depend on notice).")));
     const hasProgress = Object.keys(state.lessons).length || Object.keys(state.conf).length || Object.values(state.notes).some((n) => n && n.t);
     const lastBk = state.checks.backup ? parseD(state.checks.backup) : null;
-    if (hasProgress && (!lastBk || (parseD(todayISO()) - lastBk) / DAY >= 7))
+    const online = !!(window.DATSync && window.DATSync.code);
+    if (hasProgress && !online && (!lastBk || (parseD(todayISO()) - lastBk) / DAY >= 7))
       out.push(el("div", { class: "callout" }, el("div", {}, el("strong", { text: lastBk ? "Time for a backup. " : "Back up your progress. " }), "It's saved only in this browser. A backup file keeps it safe and moves it to another device."),
         el("button", { type: "button", class: "btn small", onclick: backup }, "Back up now")));
 
@@ -556,9 +565,30 @@
   }
   function SettingsRest() {
     const out = [];
+    const sy = window.DATSync;
+    if (sy) {
+      const code = sy.code;
+      if (code) {
+        const link = location.origin + location.pathname + "?code=" + code;
+        out.push(el("section", { class: "block" }, el("div", { class: "block-head" }, el("h2", { text: "Online saving" }),
+            el("span", { class: "chip" + (sy.status === "synced" ? " good" : ""), text: sy.status === "synced" ? "On · saved " + (sy.lastSynced ? sy.lastSynced.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "") : sy.status === "syncing" ? "Saving…" : sy.status === "offline" ? "Offline: saved on this device" : "Couldn't reach the server" })),
+          el("p", { class: "muted small", text: "Every change saves online. To use DAT Prep on another phone or computer, open your personal link there. Keep it private: anyone with it can see and change your progress." }),
+          el("div", { class: "codebox" }, el("span", { class: "small muted", text: "Your personal code" }), el("strong", { class: "num", text: code })),
+          el("div", { class: "row" },
+            el("button", { type: "button", class: "btn primary", onclick: async () => { try { await navigator.clipboard.writeText(link); toast("Personal link copied"); } catch (e) { prompt("Copy your personal link:", link); } } }, "Copy my personal link"),
+            el("button", { type: "button", class: "btn", onclick: () => sy.push().then(() => toast(sy.status === "synced" ? "Saved online" : "Couldn't save online right now")) }, "Save now"),
+            el("button", { type: "button", class: "btn ghost", onclick: () => { if (confirm("Stop saving online on this device? Your progress stays here and online; open your personal link again to reconnect.")) { sy.forget(); render(); } } }, "Disconnect this device"))));
+      } else {
+        const inp = el("input", { type: "text", id: "codeIn", placeholder: "For example, NIRA-XXXX-XXXX", autocomplete: "off", "aria-label": "Personal code", style: "text-transform:uppercase" });
+        const msg = el("p", { class: "err", role: "alert" });
+        out.push(el("section", { class: "block" }, el("div", { class: "block-head" }, el("h2", { text: "Online saving" }), el("span", { class: "chip", text: "Off" })),
+          el("p", { class: "muted small", text: "Right now your progress is saved only in this browser. If you have a personal link or code, enter the code to save online and use any device." }),
+          el("div", { class: "row" }, inp, el("button", { type: "button", class: "btn primary", onclick: async () => { msg.textContent = ""; const ok = await sy.useCode(inp.value); if (ok) render(); else msg.textContent = "That code didn't work. Check it and try again."; } }, "Save online")), msg));
+      }
+    }
     const file = el("input", { type: "file", accept: "application/json,.json", class: "sr", id: "restoreFile", onchange: () => restore(file) });
     out.push(el("section", { class: "block" }, el("div", { class: "block-head" }, el("h2", { text: "Backup" }), el("span", { class: "muted small", text: state.checks.backup ? "Last backup " + fmtD(parseD(state.checks.backup)) : "Never backed up" })),
-      el("p", { class: "muted small", text: "Your progress is saved only in this browser. A backup file keeps it safe and moves it to another device." }),
+      el("p", { class: "muted small", text: window.DATSync && window.DATSync.code ? "Online saving already keeps your progress safe. A backup file is an extra copy you keep yourself." : "Your progress is saved only in this browser. A backup file keeps it safe and moves it to another device." }),
       el("div", { class: "row" }, el("button", { type: "button", class: "btn primary", onclick: backup }, "Back up progress"),
         el("label", { class: "btn", for: "restoreFile" }, "Restore a backup"), file)));
 
@@ -603,5 +633,12 @@
   window.addEventListener("hashchange", () => { fromHash(); render(); });
   window.addEventListener("storage", (e) => { if (e.key === KEY) { state = load(); render(); } });
   applyTheme(); fromHash(); render();
-  window.DATApp = { get state() { return state; }, blank, weekPlan, phaseDates, mastery, notes, nextLesson };
+  window.DATApp = {
+    get state() { return state; }, blank, weekPlan, phaseDates, mastery, notes, nextLesson, go, toast,
+    busy: () => !!(window.DATTest && window.DATTest.active),
+    // Swap in progress loaded from online (keeps its own timestamp so it isn't re-uploaded as new).
+    replace(x) { state = merge(blank(), x); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { } applyTheme(); if (state.settings.setup) closeOverlay(); render(); },
+    applyName(n) { if (!state.settings.name) { state.settings.name = n; save(); const f = $("#suName"); if (f && !f.value) f.value = n; render(); } }
+  };
+  document.addEventListener("dat-sync-status", () => { if (tab === "me" && view === "settings" && !$(".overlay") && !(document.activeElement && document.activeElement.id === "codeIn")) render(); });
 })();
