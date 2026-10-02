@@ -36,7 +36,7 @@
     labIntro: "Jam the chain. Pick a blocker, predict what happens to O₂ use and ATP, then watch the animation play it out.",
     ruleTitle: "The big table",
     rule: {
-      html: "<p>Per glucose, in a eukaryotic cell:</p><div class='tbl'><table><thead><tr><th>Stage</th><th>Where</th><th>ATP</th><th>NADH</th><th>FADH₂</th><th>CO₂</th></tr></thead><tbody>" +
+      html: "<p>Per glucose, in a eukaryotic cell:</p><div class='tbl' tabindex='0' role='region' aria-label='Per-glucose totals table'><table><thead><tr><th>Stage</th><th>Where</th><th>ATP</th><th>NADH</th><th>FADH₂</th><th>CO₂</th></tr></thead><tbody>" +
         "<tr><td>Glycolysis</td><td>Cytosol</td><td>2 net</td><td>2</td><td>0</td><td>0</td></tr>" +
         "<tr><td>Pyruvate oxidation</td><td>Matrix</td><td>0</td><td>2</td><td>0</td><td>2</td></tr>" +
         "<tr><td>Citric acid cycle</td><td>Matrix</td><td>2</td><td>6</td><td>2</td><td>4</td></tr>" +

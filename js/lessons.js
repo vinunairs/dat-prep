@@ -97,7 +97,8 @@
             "Best round: " + p.best + " of " + (lesson.soloCount || 3) + ". Another round any time gives you new questions."),
           el("div", { class: "row" },
             nx ? el("button", { type: "button", class: "btn primary", onclick: () => ctx.go("learn", nx.id) }, "Next up: " + nx.title) : el("button", { type: "button", class: "btn primary", onclick: () => ctx.go("learn", lesson.section) }, "Back to " + ctx.sectionName(lesson.section)),
-            el("button", { type: "button", class: "btn", onclick: () => ctx.openNotes(lesson.id) }, "Review my notes"))));
+            el("button", { type: "button", class: "btn", onclick: () => ctx.practice(lesson.id) }, "Practice this topic"),
+            el("button", { type: "button", class: "btn ghost", onclick: () => ctx.openNotes(lesson.id) }, "Review my notes"))));
       }
     }
 

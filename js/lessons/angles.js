@@ -76,7 +76,8 @@
       msg.textContent = t < 0.98 ? "Keep sliding: both angles turn until one ray lies flat, and the rays grow to the same length." : "Same vertex, flat first ray, equal ray lengths. Angle 4's teal ray sits below angle 1's: angle 4 opens less, so it's smaller.";
     }
     s.addEventListener("input", paint);
-    box.append(fig, el("label", { class: "ctrl" }, "Rotate both so one ray lies flat", s), msg);
+    box.append(DATViz.howTo(el, ["Drag the slider all the way to the right.", "Compare the second rays: the one closer to the flat ray is the smaller angle."], "Try it").node,
+      fig, el("label", { class: "ctrl" }, "Rotate both so one ray lies flat", s), msg);
     paint();
   }
 
@@ -107,10 +108,13 @@
           "Which is bigger, A or B? Decide, then turn on \"Line them up\" to check.";
       }
       [range, reveal, overlay].forEach((x) => x.addEventListener("input", paint));
-      box.append(el("p", { text: "Long rays make an angle look bigger, and rotation hides the size. Slide B, guess, then line the angles up to check." }),
-        fig, el("label", { class: "ctrl" }, "Size of angle B", range),
-        el("div", { class: "row" }, el("label", { class: "row small", style: "gap:6px" }, overlay, "Line them up"), el("label", { class: "row small", style: "gap:6px" }, reveal, "Show degrees")),
-        out);
+      const how = DATViz.howTo(el, ["Move the slider to change angle B.", "Decide which looks bigger, A or B. Long rays and rotation try to fool you.", "Tick “Line them up” to check, and “Show degrees” for the exact sizes."]);
+      range.addEventListener("input", () => how.at(1));
+      overlay.addEventListener("input", () => how.at(2));
+      box.append(how.node, DATViz.layout(el, { fig,
+        ctrl: el("div", { class: "ctrls" }, el("label", { class: "ctrl" }, "Size of angle B", range),
+          el("label", { class: "check-line" }, overlay, "Line them up"), el("label", { class: "check-line" }, reveal, "Show degrees")),
+        out }));
       paint();
     },
     ruleTitle: "The method",

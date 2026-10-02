@@ -18,7 +18,7 @@
       lessons: {},   // lessonId -> { st: stages done, walk: step, best, done: date }
       notes: {},     // lessonId or "general" -> { t: text, u: ms }
       activity: {},  // date -> { q, c, min }
-      tests: [], mistakes: [], checks: {}, theme: null
+      tests: [], mistakes: [], practice: [], checks: {}, theme: null
     };
   }
   function merge(base, x) {
@@ -204,19 +204,27 @@
   const lessonState = (l) => { const p = state.lessons[l.id] || {}; return p.done ? "done" : p.st ? "started" : "new"; };
   const lessonVerb = (l) => ({ done: "Review lesson", started: "Continue lesson", new: "Start lesson" })[lessonState(l)];
 
+  // Context for the Practice and Tests modules.
+  let practicePreset = null;
+  const fmtDay = (iso) => fmtD(parseD(iso));
+  function modCtx() {
+    const c = { el, get state() { return state; }, save: () => save(), go, L, S, record, toast, today: todayISO, fmtDay, back, chev, view, preset: practicePreset };
+    practicePreset = null;
+    return c;
+  }
   const lessonCtx = {
     get state() { return state; }, save: () => save(), el, toast, go, record, notes, today: todayISO,
     sectionName: (id) => S.byId[id].name, topicName: (id) => S.byId[id].name,
-    nextLesson, mastery: (id) => mastery(id), openNotes: (id) => toggleNotes(id)
+    nextLesson, mastery: (id) => mastery(id), openNotes: (id) => toggleNotes(id),
+    practice: (lessonId) => { practicePreset = lessonId; go("practice"); }
   };
 
   /* ---------- Shell ---------- */
-  const TABS = ["today", "learn", "me", "notes"]; // notes is a page without its own tab
+  const TABS = ["today", "learn", "practice", "tests", "me", "notes"]; // notes is a page without its own tab
   let tab = "today", view = null; // view: a sub-page such as a section or lesson in Learn
   function go(t, v) { tab = t; view = v || null; history.replaceState(null, "", "#" + t + (v ? "/" + v : "")); render(); window.scrollTo(0, 0); }
   function fromHash() {
     let [t, v] = (location.hash.slice(1) || "today").split("/");
-    if (t === "tests") { t = "learn"; v = "dat"; } // old links
     tab = TABS.includes(t) ? t : "today"; view = v || null;
   }
   const back = (label, fn) => el("button", { type: "button", class: "back", onclick: fn }, "‹ " + label);
@@ -225,15 +233,15 @@
     const navTab = tab === "notes" ? "me" : tab;
     document.querySelectorAll(".tabs button").forEach((b) => { if (b.dataset.tab === navTab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     const m = $("#main"); m.textContent = "";
-    const screens = { today: Today, learn: Learn, me: Me, notes: NotesPage };
-    m.append(...[].concat(screens[tab]()));
+    const screens = { today: Today, learn: Learn, practice: () => window.DATPractice.Practice(modCtx()), tests: () => window.DATTest.Tests(modCtx()), me: Me, notes: NotesPage };
+    m.append(...[].concat(screens[tab]()).filter((n) => n != null && n !== false));
     paintBar();
     // On wide screens a lesson keeps its notes open beside it; elsewhere notes open on demand.
     const onLesson = tab === "learn" && view && L.byId[view];
     const open = $(".notes-panel"), ta = $("#notesTa");
     if (open && ta && (!onLesson || ta.dataset.id !== view)) { notes.set(ta.dataset.id, ta.value); closeNotes(); }
     if (onLesson && wide.matches && !state.notesHidden && !$(".notes-panel")) notes.open(view, true);
-    document.title = (tab === "today" ? "" : (onLesson ? L.byId[view].title : tab === "notes" ? "Notes" : tab === "me" ? "Me" : "Learn") + " · ") + "DAT Prep";
+    document.title = (tab === "today" ? "" : (onLesson ? L.byId[view].title : ({ notes: "Notes", me: "Me", learn: "Learn", practice: "Practice", tests: "Tests" })[tab]) + " · ") + "DAT Prep";
     if (!state.settings.setup && tab === "today") setTimeout(openSetup, 50);
   }
   function paintBar() {
@@ -286,6 +294,9 @@
   /* ---------- Today ---------- */
   const SETUP_STEPS = [
     { id: "format", t: "Learn how the test works", s: "Sections, timing, scoring and test-day rules, in five minutes.", act: () => go("learn", "dat"), a: "Read it" },
+    { id: "lesson", auto: () => Object.values(state.lessons).some((p) => p.done), t: "Finish your first lesson", s: "Explore, learn the rule, walk through one, then try it yourself.", act: () => { const n = nextLesson(); go("learn", n ? n.id : undefined); }, a: "Start" },
+    { id: "practiced", auto: () => (state.practice || []).length > 0, t: "Do a practice set", s: "Five fresh questions with explanations.", act: () => go("practice"), a: "Practice" },
+    { id: "tested", auto: () => (state.tests || []).length > 0, t: "Take the sample test", s: "Timed like the real DAT, about 9 minutes.", act: () => go("tests"), a: "Open" },
     { id: "rate", t: "Rate the science topics you already know", s: "New, shaky or solid. It decides which lessons come first.", act: () => go("learn"), a: "Rate topics" },
     { id: "pat", t: "Read the official PAT instructions", s: "The ADA strongly recommends it before test day.", href: "https://www.ada.org/DAT", a: "Open ADA.org" },
     { id: "ada", t: "Try the free ADA sample questions", s: "A first look at the real question style.", href: "https://www.ada.org/DAT", a: "Open ADA.org" },
@@ -323,16 +334,17 @@
         el("button", { type: "button", class: "btn small", onclick: backup }, "Back up now")));
 
     // Start here (shown first while most steps are open).
-    const done = SETUP_STEPS.filter((x) => state.checks[x.id]).length;
+    const isDone = (x) => (x.auto ? x.auto() : !!state.checks[x.id]);
+    const done = SETUP_STEPS.filter(isDone).length;
     const startHere = done < SETUP_STEPS.length ? el("section", { class: "block" },
       el("div", { class: "block-head" }, el("h2", { text: "Start here" }), el("span", { class: "muted small", text: done + " of " + SETUP_STEPS.length + " done" })),
       el("ul", { class: "rows" }, SETUP_STEPS.map((x) => {
-        const box = el("input", { type: "checkbox", id: "ck-" + x.id, checked: !!state.checks[x.id], onchange: () => { if (box.checked) state.checks[x.id] = todayISO(); else delete state.checks[x.id]; save(); render(); } });
-        return el("li", { class: "row-item check" + (state.checks[x.id] ? " done" : "") }, box,
+        const box = el("input", { type: "checkbox", id: "ck-" + x.id, checked: isDone(x), disabled: !!x.auto, title: x.auto ? "Ticks itself when you do it" : null, onchange: () => { if (box.checked) state.checks[x.id] = todayISO(); else delete state.checks[x.id]; save(); render(); } });
+        return el("li", { class: "row-item check" + (isDone(x) ? " done" : "") }, box,
           el("label", { for: "ck-" + x.id, class: "grow" }, el("span", { class: "t", text: x.t }), el("span", { class: "s", text: x.s })),
           x.href ? el("a", { class: "btn small", href: x.href, target: "_blank", rel: "noopener" }, x.a, el("span", { class: "sr", text: " (opens in a new tab)" })) : el("button", { type: "button", class: "btn small", onclick: x.act }, x.a));
       }))) : null;
-    if (startHere && done < 3) out.push(startHere);
+    if (startHere && done < 4) out.push(startHere);
 
     // This week
     if (now) {
@@ -364,7 +376,7 @@
               : it.soon || it.sec ? el("span", { class: "chip", text: "Coming soon" }) : null);
         }))));
     }
-    if (startHere && done >= 3) out.push(startHere);
+    if (startHere && done >= 4) out.push(startHere);
 
     // Road to test day
     if (ph) out.push(el("section", { class: "block" }, el("div", { class: "block-head" }, el("h2", { text: "Your road to test day" })),
@@ -487,6 +499,17 @@
         el("dt", { text: "Test date" }), el("dd", { text: st.date ? fmtD(parseD(st.date), { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "Not set" }),
         el("dt", { text: "Target score" }), el("dd", { text: st.target ? String(st.target) : "Not set" }),
         el("dt", { text: "Study time" }), el("dd", { text: st.hours + " hours a week" }))));
+
+    // Activity: practice, tests and mistakes in one place.
+    const pr = state.practice || [], ts = state.tests || [], qN = pr.reduce((a, p) => a + p.n, 0), qR = pr.reduce((a, p) => a + p.right, 0);
+    const lastT = ts[ts.length - 1];
+    out.push(el("section", { class: "block" }, el("div", { class: "block-head" }, el("h2", { text: "Your activity" })),
+      el("div", { class: "stats3" },
+        el("button", { type: "button", class: "stat", onclick: () => go("learn") }, el("b", { class: "num", text: String(Object.values(state.lessons).filter((p) => p.done).length) + " / " + L.list.length }), el("span", { text: "lessons done" })),
+        el("button", { type: "button", class: "stat", onclick: () => go("practice") }, el("b", { class: "num", text: qN ? Math.round((qR / qN) * 100) + "%" : "—" }), el("span", { text: qN ? "right in practice (" + qN + " questions)" : "practice accuracy" })),
+        el("button", { type: "button", class: "stat", onclick: () => go("tests") }, el("b", { class: "num", text: lastT ? lastT.right + "/" + lastT.total : "—" }), el("span", { text: lastT ? "last sample test" : "no tests yet" }))),
+      (state.mistakes || []).length ? el("button", { type: "button", class: "navrow", style: "margin-top:8px", onclick: () => go("practice", "mistakes") },
+        el("span", { class: "ico info", "aria-hidden": "true", text: "!" }), el("span", { class: "grow" }, el("span", { class: "t", text: "Mistake notebook" }), el("span", { class: "s", text: state.mistakes.length + " to retry" })), chev()) : null));
 
     // Skills: one summary row per section that opens to its topics.
     out.push(el("section", { class: "block" },

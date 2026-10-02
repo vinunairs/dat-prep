@@ -20,19 +20,20 @@
   function mixer(box, ctx) {
     const { el } = ctx;
     let rx = RXN[0];
-    const pick = el("div", { class: "seg", role: "group", "aria-label": "Reaction" }, RXN.map((r, i) => el("button", { type: "button", "aria-pressed": String(i === 0), onclick: (e) => { rx = r; pick.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget))); setup(); } }, r.eq)));
+    const how = root.DATViz.howTo(el, ["Pick a reaction.", "Use the sliders to set how many molecules of each reactant go in.", "Guess which one will run out first (optional).", "Press React and watch them pair up."]);
+    const pick = el("div", { class: "seg", role: "group", "aria-label": "Reaction" }, RXN.map((r, i) => el("button", { type: "button", "aria-pressed": String(i === 0), onclick: (e) => { rx = r; pick.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget))); setup(); how.at(1); } }, r.eq)));
     const sA = el("input", { type: "range", min: "0", step: "1" }), sB = el("input", { type: "range", min: "0", step: "1" });
     const lA = el("span"), lB = el("span");
     const fig = el("div", { class: "fig" });
     const guess = el("div", { class: "seg", role: "group", "aria-label": "Your guess" });
     const out = el("div", { class: "readout", "aria-live": "polite" });
-    const go = el("button", { type: "button", class: "btn primary" }, "React!");
+    const go = el("button", { type: "button", class: "btn primary" }, "React");
     let guessed = null, reacted = false;
 
     function setup() {
       sA.max = rx.max[0]; sB.max = rx.max[1]; sA.value = rx.start[0]; sB.value = rx.start[1];
       guess.textContent = "";
-      [rx.r[0][0], rx.r[1][0], "Neither"].forEach((g) => guess.append(el("button", { type: "button", "aria-pressed": "false", onclick: (e) => { guessed = g; guess.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget))); } }, g)));
+      [rx.r[0][0], rx.r[1][0], "Neither"].forEach((g) => guess.append(el("button", { type: "button", "aria-pressed": "false", onclick: (e) => { guessed = g; guess.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget))); how.at(3); } }, g)));
       draw();
     }
     function counts() { return [+sA.value, +sB.value]; }
@@ -49,11 +50,11 @@
       B.forEach(([x, y], i) => (s += molecule(rx.r[1][2], x, y, "b b" + i)));
       s += "<g class='prods'></g></svg>";
       fig.innerHTML = s;
-      out.innerHTML = "Set the amounts, then guess: which reactant will run out first? (Optional.) Then press <b>React!</b>";
+      out.innerHTML = "<span class='muted'>The result appears here after you press <b>React</b>.</span>";
     }
     function react() {
       if (reacted) { draw(); return; }
-      reacted = true;
+      reacted = true; how.finish();
       const [a, b] = counts(), [ca, cb] = [rx.r[0][1], rx.r[1][1]];
       const k = Math.min(Math.floor(a / ca), Math.floor(b / cb)); // times the reaction can run
       const svg = fig.querySelector("svg"), prods = svg.querySelector(".prods");
@@ -88,17 +89,23 @@
         msg += "<br><span class='muted'>The shortcut, without drawing: " + rx.r[0][0] + " " + a + " ÷ " + ca + " = " + +(a / ca).toFixed(2) + ", " + rx.r[1][0] + " " + b + " ÷ " + cb + " = " + +(b / cb).toFixed(2) + ". The smaller number is limiting. It works the same with moles.</span>";
         if (guessed) msg = (guessed === lim ? "✓ Your guess was right. " : "Your guess was " + guessed + ". ") + msg;
         out.innerHTML = msg;
-        go.textContent = "Reset";
+        go.textContent = "Try again";
       }, k * delay + 150);
       go.textContent = "Reacting…";
     }
-    sA.addEventListener("input", () => { go.textContent = "React!"; draw(); });
-    sB.addEventListener("input", () => { go.textContent = "React!"; draw(); });
-    go.addEventListener("click", () => { if (reacted) { go.textContent = "React!"; draw(); } else react(); });
-    box.append(pick, fig,
-      el("div", { class: "grid2" }, el("label", { class: "ctrl" }, el("span", {}, "First reactant: ", lA), sA), el("label", { class: "ctrl" }, el("span", {}, "Second reactant: ", lB), sB)),
-      el("div", { class: "predq" }, el("span", { text: "Your guess: which runs out first?" }), guess),
-      el("div", { class: "row" }, go), out);
+    sA.addEventListener("input", () => { go.textContent = "React"; draw(); how.at(2); });
+    sB.addEventListener("input", () => { go.textContent = "React"; draw(); how.at(2); });
+    go.addEventListener("click", () => { if (reacted) { go.textContent = "React"; draw(); how.at(1); } else react(); });
+    box.append(how.node, root.DATViz.layout(el, {
+      fig,
+      ctrl: el("div", { class: "ctrls" },
+        el("div", { class: "ctrl" }, el("span", { text: "Reaction" }), pick),
+        el("label", { class: "ctrl" }, el("span", {}, "First reactant: ", lA), sA),
+        el("label", { class: "ctrl" }, el("span", {}, "Second reactant: ", lB), sB),
+        el("div", { class: "ctrl" }, el("span", { text: "Your guess: which runs out first?" }), guess),
+        el("div", { class: "row" }, go)),
+      out
+    }));
     setup();
   }
 

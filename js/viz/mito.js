@@ -20,7 +20,7 @@
   function overviewSvg() {
     return "<svg viewBox='0 0 360 236' class='mito' role='img' aria-label='A cell with a mitochondrion. Glycolysis happens in the cytosol; pyruvate oxidation and the citric acid cycle in the matrix; the electron transport chain on the inner membrane.'>" +
       "<rect x='2' y='2' width='356' height='232' rx='18' class='cyto'/>" +
-      "<text x='16' y='24' class='lbl'>Cytosol</text>" +
+      "<text x='16' y='24' class='lbl' text-anchor='start'>Cytosol</text>" +
       "<rect x='10' y='34' width='108' height='190' rx='14' class='zone' data-z='0'/>" +
       // glucose → 2 pyruvate
       "<g class='mol' data-m='glu'><polygon points='64,60 80,69 80,87 64,96 48,87 48,69' class='hex'/><text x='64' y='82' class='t'>glucose</text></g>" +
@@ -94,8 +94,10 @@
       const next = el("button", { type: "button", class: "btn primary" }, "Start: glycolysis");
       next.addEventListener("click", () => go(at + 1 > 3 ? 0 : at + 1));
       function totals(n) { const t = { atp: 0, nadh: 0, fadh2: 0, co2: 0 }; for (let i = 0; i <= n; i++) for (const k in t) t[k] += STAGES[i].add[k]; return t; }
+      let howRef = null;
       function go(i) {
         at = i;
+        if (howRef) howRef.at(i >= 3 ? 2 : 1);
         const t = totals(i);
         svg.querySelectorAll("[data-z]").forEach((z) => z.classList.toggle("on", z.getAttribute("data-z").split(" ").includes(String(i))));
         const show = { glu: i >= 0, pyr: i >= 0, acoa: i >= 1, krebs: i >= 2 };
@@ -114,7 +116,9 @@
         if (i === 3) say.innerHTML += "<br><button type='button' class='btn small' style='margin-top:8px' data-go-etc>See the chain in action →</button>";
         const b = say.querySelector("[data-go-etc]"); if (b) b.addEventListener("click", () => viewBtns[1].click());
       }
-      views.append(pic, steps, tally, say, el("div", { class: "row" }, next));
+      const how = root.DATViz.howTo(el, ["Press Start, or tap any stage, to follow one glucose molecule.", "Read what each stage does and watch the running totals add up.", "At the last stage, switch to “Watch the chain” to see the ATP being made."]);
+      howRef = how;
+      views.append(how.node, root.DATViz.layout(el, { fig: pic, ctrl: el("div", { class: "ctrls" }, steps, el("div", { class: "row" }, next), tally), out: say }));
       say.innerHTML = "Tap <b>Start</b> to follow one glucose molecule. Watch where each stage happens and what piles up.";
       tally.innerHTML = "<div class='eyebrow'>Running total per glucose</div><div class='tl'><div class='tk'><b>0</b><span>ATP</span></div><div class='tk'><b>0</b><span>NADH</span></div><div class='tk'><b>0</b><span>FADH₂</span></div><div class='tk'><b>0</b><span>CO₂</span></div></div>";
       svg.querySelectorAll("[data-m='acoa'],[data-m='krebs'],[data-a='1']").forEach((m) => m.classList.add("dim"));
@@ -138,7 +142,8 @@
       const gauges = el("div", { class: "gauges" });
       const verdict = el("div", { class: "readout", "aria-live": "polite" });
       const blockBtns = el("div", { class: "seg", role: "group", "aria-label": "Add a blocker" });
-      let mode = "none", hIMS = 16, tick = 0, since = 0, hist = [], heat = 0, pred = null, running = true, timer = null, raf = null;
+      let mode = "none", hIMS = 16, tick = 0, since = 0, hist = [{ o2: 1, atp: 1 }, { o2: 1, atp: 1 }, { o2: 1, atp: 1 }, { o2: 1, atp: 1 }], // start from a normal, steady chain
+         heat = 0, pred = null, running = true, timer = null, raf = null;
       const flights = [];
 
       // H⁺ dots in the intermembrane space: one dot per unit of gradient.
@@ -212,13 +217,15 @@
         const g = [["Proton gradient", hIMS / 32, hIMS >= 26 ? "very steep" : hIMS < 8 ? "low" : "normal", "grad"], ["O₂ use", rate("o2") / 2, rate("o2") > 1.2 ? "above normal" : rate("o2") < 0.8 ? "low" : "normal", "o2"], ["ATP made", rate("atp") / 2, rate("atp") > 0.6 ? "normal" : rate("atp") > 0.2 ? "low" : "almost none", "atp"]];
         gauges.innerHTML = g.map(([n, v, w, c]) => "<div class='gauge " + c + "'><div class='gl'><span>" + n + "</span><span class='muted'>" + w + "</span></div><div class='bar'><i style='width:" + Math.round(Math.min(1, v) * 100) + "%'></i></div></div>").join("");
       }
+      let labHow = null;
       function choose(m) {
+        if (labHow) labHow.at(m === "none" ? 0 : 1);
         if (m === "none") { apply("none"); return; }
         // Predict first, then watch.
         verdict.innerHTML = "";
         const q = (label, key) => el("div", { class: "predq" }, el("span", { text: label }),
           el("div", { class: "seg", role: "group", "aria-label": label }, [["up", "↑ Rises"], ["down", "↓ Falls"], ["same", "No change"]].map(([v, t]) =>
-            el("button", { type: "button", "aria-pressed": "false", onclick: (e) => { pred[key] = v; e.currentTarget.parentNode.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget))); go.disabled = !(pred.o2 && pred.atp); } }, t))));
+            el("button", { type: "button", "aria-pressed": "false", onclick: (e) => { pred[key] = v; e.currentTarget.parentNode.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget))); go.disabled = !(pred.o2 && pred.atp); if (labHow && !go.disabled) labHow.at(2); } }, t))));
         pred = { m };
         const go = el("button", { type: "button", class: "btn primary", disabled: true, onclick: () => apply(m) }, "Add " + NAMES[m] + " and watch");
         verdict.append(el("p", {}, el("b", { text: "Predict first: " }), "what will " + NAMES[m] + " do?"), q("O₂ use", "o2"), q("ATP made", "atp"), go);
@@ -234,6 +241,7 @@
         else verdict.innerHTML = "<b>" + NAMES[m] + " added.</b> Watching… (about 10 seconds; keep an eye on the gauges)";
       }
       function showVerdict() {
+        if (labHow) labHow.finish();
         const T = TRUTH[pred.m], word = { up: "rises", down: "falls", same: "doesn't change" };
         const ok1 = pred.o2 === T.o2, ok2 = pred.atp === T.atp;
         verdict.innerHTML = "<p style='margin:0 0 6px'><b>" + (ok1 && ok2 ? "✓ Both predictions right." : ok1 || ok2 ? "One of two right." : "Not this time. Here's why:") + "</b></p>" +
@@ -241,10 +249,15 @@
         pred = null;
       }
       Object.keys(NAMES).forEach((m) => blockBtns.append(el("button", { type: "button", "data-m": m, "aria-pressed": String(m === "none"), onclick: () => choose(m) }, NAMES[m])));
-      views.append(el("p", { class: "small muted", text: "Yellow dots are electrons; ⊕ are protons (each dot stands for several). Watch them pumped up at complexes I, III and IV, then flowing back down through ATP synthase, which makes ATP. O₂ catches the electrons at the end." }),
-        pic, gauges);
-      if (lab) views.append(el("div", { class: "eyebrow", style: "margin-top:10px", text: "Add a blocker" }), blockBtns, verdict);
-      else views.append(el("p", { class: "readout", html: "<b>What you're seeing:</b> NADH and FADH₂ drop off electrons. As the electrons pass down the chain, their energy pumps protons into the intermembrane space, building a gradient. Protons rush back through ATP synthase, and that flow makes ATP. Without O₂ at the end, everything would back up. After the rule, you'll test this by jamming the chain." }));
+      const legend = el("p", { class: "small muted", text: "Yellow dots are electrons; ⊕ are protons (each dot stands for several)." });
+      if (lab) {
+        labHow = root.DATViz.howTo(el, ["Pick a blocker.", "Predict what happens to O₂ use and to ATP.", "Press the button to add it, then watch the gauges for about 10 seconds.", "Read whether you were right, and why."]);
+        views.append(labHow.node, root.DATViz.layout(el, { fig: el("div", {}, pic, legend, gauges), ctrl: el("div", { class: "ctrls" }, el("div", { class: "ctrl" }, el("span", { text: "Add a blocker" }), blockBtns), verdict) }));
+      } else {
+        const how = root.DATViz.howTo(el, ["Watch the yellow electrons travel down complexes I to IV.", "Watch protons (⊕) get pumped up into the intermembrane space.", "Watch them flow back down through ATP synthase, which makes ATP. The gauges show the totals."], "What to watch");
+        views.append(how.node, root.DATViz.layout(el, { fig: el("div", {}, pic, legend), ctrl: gauges,
+          out: el("p", { class: "readout", html: "<b>What you're seeing:</b> NADH and FADH₂ drop off electrons. As the electrons pass down the chain, their energy pumps protons into the intermembrane space, building a gradient. Protons rush back through ATP synthase, and that flow makes ATP. Without O₂ at the end, everything would back up. After the rule, you'll test this by jamming the chain." }) }));
+      }
       paintH(); paintGauges();
       verdict.innerHTML = TRUTH.none.text + " <b>Pick a blocker. You'll predict first, then watch.</b>";
       timer = setInterval(step, reduce() ? 1200 : 900);

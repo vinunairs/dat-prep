@@ -101,7 +101,7 @@
           "<span class='muted'>Notice: the grams don't scale by the coefficients. Only moles do. Try " + G[0] + " → " + G[0] + " to see the ratio become 1.</span>";
       }
       sel.addEventListener("change", fill); giv.addEventListener("change", paint); tgt.addEventListener("change", paint); range.addEventListener("input", paint);
-      box.append(el("p", { text: "Pick a reaction, what you start with and what you want. Slide the amount and watch each step of the trip." }),
+      box.append(DATViz.howTo(el, ["Pick a reaction.", "Choose what you start with and what you want to find.", "Slide the amount and watch every step of the trip change."]).node,
         el("label", { class: "ctrl" }, "Reaction", sel),
         el("div", { class: "grid2" }, el("label", { class: "ctrl" }, "Start with", giv), el("label", { class: "ctrl" }, "Find", tgt)),
         el("label", { class: "ctrl" }, "Amount you start with", range), out);
