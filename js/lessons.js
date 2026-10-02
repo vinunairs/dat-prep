@@ -32,7 +32,8 @@
     function stageCard(s, body) {
       const locked = s.n - 1 > p.st;
       const done = s.n <= p.st;
-      return el("section", { class: "card stage" + (locked ? " locked" : "") + (done ? " done" : ""), "data-stage": s.n },
+      const cur = !locked && !done && !p.done;
+      return el("section", { class: "card stage" + (locked ? " locked" : "") + (done ? " done" : "") + (cur ? " cur" : ""), "data-stage": s.n },
         el("div", { class: "sh" }, el("span", { class: "sn", text: done ? "✓" : String(s.n) }), el("h2", { text: s.title })),
         locked ? el("p", { class: "muted small", text: "Finish step " + (s.n - 1) + " to unlock." }) : body());
     }

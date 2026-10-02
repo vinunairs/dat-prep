@@ -55,12 +55,13 @@
     const timed = el("input", { type: "checkbox", checked: cfg.timed, onchange: () => { cfg.timed = timed.checked; how.at(2); } });
     const nMiss = (state.mistakes || []).length;
     const hist = (state.practice || []).slice(-5).reverse();
+    const nav = c.subnav([["practice", null, "Build a set"], ["practice", "mistakes", "Mistake notebook" + (nMiss ? " (" + nMiss + ")" : "")]], "practice/");
     return [
-      el("h1", { text: "Practice" }),
+      el("h1", { text: "Practice" }), nav,
       inProgress ? el("div", { class: "callout" }, el("div", {}, el("strong", { text: "You have a set in progress. " }), "Question " + (run.i + 1) + " of " + run.qs.length + "."),
         el("button", { type: "button", class: "btn small", onclick: () => go("practice", "run") }, "Resume set")) : null,
       el("p", { class: "lede", text: "Fresh questions every time, with a worked explanation after each one. These sample sets use the topics that have lessons so far; more arrive with each new lesson." }),
-      el("section", { class: "card" }, how.node,
+      el("div", { class: "practice-top" }, el("section", { class: "card" }, el("span", { class: "eyebrow", text: "Build a set" }), el("h2", { style: "margin:4px 0 12px", text: "Fresh questions, your choice" }), how.node,
         el("div", { class: "ctrls" },
           chips("What to practice", topics, "lesson"),
           chips("How many questions", [[5, "5"], [10, "10"]], "count"),
@@ -70,9 +71,9 @@
             run = { qs, i: 0, right: 0, times: [], t0: Date.now(), cfg: Object.assign({}, cfg), answered: false };
             go("practice", "run");
           } }, "Start practice")))),
-      el("button", { type: "button", class: "navrow standalone", onclick: () => go("practice", "mistakes") },
-        el("span", { class: "ico info", "aria-hidden": "true", text: "!" }),
-        el("span", { class: "grow" }, el("span", { class: "t", text: "Mistake notebook" }), el("span", { class: "s", text: nMiss ? nMiss + " question" + (nMiss === 1 ? "" : "s") + " to retry" : "Empty. Misses from practice land here." })), c.chev()),
+        el("section", { class: "card" }, el("span", { class: "eyebrow", text: "Your misses" }), el("h2", { style: "margin:4px 0 8px", text: "Mistake notebook" }),
+          el("p", { class: "muted", text: nMiss ? nMiss + " question" + (nMiss === 1 ? " is" : "s are") + " waiting. Answer one correctly and it leaves the notebook." : "Empty. Every question you miss in practice or a test waits here until you get it right." }),
+          el("button", { type: "button", class: "btn primary", disabled: !nMiss, onclick: () => go("practice", "mistakes") }, nMiss ? "Retry mistakes" : "Nothing to retry"))),
       hist.length ? el("section", { class: "block" }, el("div", { class: "block-head" }, el("h2", { text: "Recent sets" })),
         el("ul", { class: "rows" }, hist.map((h) => el("li", { class: "row-item" },
           el("div", { class: "grow" }, el("span", { class: "t", text: h.label }), el("span", { class: "s", text: c.fmtDay(h.date) + " · " + h.n + " questions" + (h.avg ? " · " + h.avg + " s each" : "") })),
@@ -156,8 +157,8 @@
   function Mistakes(c) {
     const { el, state, save, go } = c;
     const list = state.mistakes || [];
-    const out = [c.back("Practice", () => go("practice")), el("h1", { text: "Mistake notebook" }),
-      el("p", { class: "lede", text: "Questions you missed in practice. Answer one correctly and it leaves the notebook." })];
+    const out = [el("h1", { text: "Practice" }), c.subnav([["practice", null, "Build a set"], ["practice", "mistakes", "Mistake notebook" + (list.length ? " (" + list.length + ")" : "")]], "practice/mistakes"),
+      el("p", { class: "lede", text: "Questions you missed in practice and tests. Answer one correctly and it leaves the notebook." })];
     if (!list.length) { out.push(el("div", { class: "callout" }, "Nothing to retry. Misses from practice sets show up here.")); return out; }
     list.slice().reverse().forEach((m) => {
       const holder = el("div");

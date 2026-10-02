@@ -176,8 +176,7 @@
     }
     q.addEventListener("input", paint);
     paint();
-    return [back("Me", () => go("me")),
-      el("h1", { text: "Notes" }),
+    return [el("h1", { text: state.settings.name || "Me" }), ME_NAV(),
       el("p", { class: "lede", text: "One page for each lesson, plus a general notebook. The Notes button at the top opens the page for wherever you are." }),
       el("div", { class: "row", style: "margin-bottom:16px" }, q,
         el("button", { type: "button", class: "btn small", onclick: downloadNotes }, "Download"),
@@ -208,7 +207,7 @@
   let practicePreset = null;
   const fmtDay = (iso) => fmtD(parseD(iso));
   function modCtx() {
-    const c = { el, get state() { return state; }, save: () => save(), go, L, S, record, toast, today: todayISO, fmtDay, back, chev, view, preset: practicePreset };
+    const c = { el, get state() { return state; }, save: () => save(), go, L, S, record, toast, today: todayISO, fmtDay, back, chev, subnav, view, preset: practicePreset };
     practicePreset = null;
     return c;
   }
@@ -228,10 +227,15 @@
     tab = TABS.includes(t) ? t : "today"; view = v || null;
   }
   const back = (label, fn) => el("button", { type: "button", class: "back", onclick: fn }, "‹ " + label);
+  // Segmented sub-navigation for related views under one tab (like Test Prep Hub).
+  const subnav = (items, cur) => el("nav", { class: "subnav", "aria-label": "Views" },
+    items.map(([t, v, label]) => el("button", { type: "button", "aria-current": cur === (t + "/" + (v || "")) ? "page" : null, onclick: () => go(t, v) }, label)));
+  const ME_NAV = () => subnav([["me", null, "Progress"], ["notes", null, "Notes"], ["me", "settings", "Settings"]], tab + "/" + (view || ""));
 
   function render() {
     const navTab = tab === "notes" ? "me" : tab;
     document.querySelectorAll(".tabs button").forEach((b) => { if (b.dataset.tab === navTab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    document.body.dataset.tab = tab;
     const m = $("#main"); m.textContent = "";
     const screens = { today: Today, learn: Learn, practice: () => window.DATPractice.Practice(modCtx()), tests: () => window.DATTest.Tests(modCtx()), me: Me, notes: NotesPage };
     m.append(...[].concat(screens[tab]()).filter((n) => n != null && n !== false));
@@ -306,52 +310,32 @@
     const st = state.settings, left = daysLeft(), ph = phaseDates(), now = currentPhase(ph);
     const weeksLeft = left != null && left > 0 ? Math.ceil(left / 7) : null;
     const hoursTotal = weeksLeft ? weeksLeft * st.hours : null;
-    const out = [el("h1", { text: st.name ? "Hi " + st.name : "Hi there" })];
-    if (left == null) out.push(el("p", { class: "lede" }, "Add your test date and your plan builds itself around it. ", el("button", { type: "button", class: "linkbtn", onclick: openSetup }, "Set test date")));
-    else if (left < 0) out.push(el("p", { class: "lede" }, "Your DAT date has passed. Retesting? Set a new date (attempts must be 60 days apart). ", el("button", { type: "button", class: "linkbtn", onclick: openSetup }, "Set new date")));
-    else out.push(el("p", { class: "lede" }, el("strong", { text: left === 0 ? "Your DAT is today." : plural(left, "day") + " to your DAT" }),
-      left ? " on " + fmtD(parseD(st.date), { weekday: "long", month: "long", day: "numeric" }) + ". " : " ", left > 3 ? "About " + hoursTotal + " study hours left at " + st.hours + " a week." : ""));
+    const hr = new Date().getHours();
+    const hello = (hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening") + (st.name ? ", " + st.name : "");
+
+    // Gradient band: greeting, test date, countdown.
+    const band = el("section", { class: "band", "aria-label": "Countdown" },
+      el("div", {}, el("h1", { class: "hello", text: hello }),
+        el("span", { class: "eyebrow", text: st.date ? "DAT · " + fmtD(parseD(st.date), { weekday: "long", month: "short", day: "numeric" }) : "DAT · no date yet" })),
+      left == null ? el("button", { type: "button", class: "btn small set", onclick: openSetup }, "Set test date")
+        : left < 0 ? el("button", { type: "button", class: "btn small set", onclick: openSetup }, "Set new date")
+        : el("div", { class: "count" }, el("b", { class: "num", text: String(left) }), el("span", {}, left === 1 ? "day" : "days", el("em", { text: "to test day" }))));
+    const out = [band];
 
     if (left != null && left > 3 && hoursTotal < 150)
-      out.push(el("div", { class: "callout warn" }, el("strong", { text: "Tight timeline. " }), "Most students study 200–300 hours. You have about " + hoursTotal + ". Add hours each week, or consider a later date (rescheduling fees depend on notice)."));
-
-    // Up next: the one thing to do now.
-    const nx = nextLesson();
-    if (nx) {
-      const sec = S.byId[nx.section];
-      out.push(el("section", { class: "upnext c-" + nx.section, "aria-label": "Up next" },
-        el("div", { class: "upnext-meta" }, lessonState(nx) === "started" ? "Pick up where you left off" : "Up next", " · ", sec.name, " · ", nx.minutes + " min"),
-        el("h2", { text: nx.title }),
-        el("p", { text: nx.intro }),
-        el("button", { type: "button", class: "btn onbrand", onclick: () => go("learn", nx.id) }, lessonVerb(nx))));
-    } else if (L.list.length) out.push(el("section", { class: "upnext" }, el("div", { class: "upnext-meta", text: "All caught up" }), el("h2", { text: "You've finished every lesson so far" }), el("p", { text: "New lessons are on the way. Meanwhile, take another round of “Your turn” in any lesson: the questions are new each time." }), el("button", { type: "button", class: "btn onbrand", onclick: () => go("learn") }, "Go to Learn")));
-
-    // Backup nudge: progress lives on this device only.
+      out.push(el("div", { class: "callout warn" }, el("div", {}, el("strong", { text: "Tight timeline. " }), "Most students study 200–300 hours. You have about " + hoursTotal + ". Add hours each week, or consider a later date (rescheduling fees depend on notice).")));
     const hasProgress = Object.keys(state.lessons).length || Object.keys(state.conf).length || Object.values(state.notes).some((n) => n && n.t);
     const lastBk = state.checks.backup ? parseD(state.checks.backup) : null;
     if (hasProgress && (!lastBk || (parseD(todayISO()) - lastBk) / DAY >= 7))
       out.push(el("div", { class: "callout" }, el("div", {}, el("strong", { text: lastBk ? "Time for a backup. " : "Back up your progress. " }), "It's saved only in this browser. A backup file keeps it safe and moves it to another device."),
         el("button", { type: "button", class: "btn small", onclick: backup }, "Back up now")));
 
-    // Start here (shown first while most steps are open).
-    const isDone = (x) => (x.auto ? x.auto() : !!state.checks[x.id]);
-    const done = SETUP_STEPS.filter(isDone).length;
-    const startHere = done < SETUP_STEPS.length ? el("section", { class: "block" },
-      el("div", { class: "block-head" }, el("h2", { text: "Start here" }), el("span", { class: "muted small", text: done + " of " + SETUP_STEPS.length + " done" })),
-      el("ul", { class: "rows" }, SETUP_STEPS.map((x) => {
-        const box = el("input", { type: "checkbox", id: "ck-" + x.id, checked: isDone(x), disabled: !!x.auto, title: x.auto ? "Ticks itself when you do it" : null, onchange: () => { if (box.checked) state.checks[x.id] = todayISO(); else delete state.checks[x.id]; save(); render(); } });
-        return el("li", { class: "row-item check" + (isDone(x) ? " done" : "") }, box,
-          el("label", { for: "ck-" + x.id, class: "grow" }, el("span", { class: "t", text: x.t }), el("span", { class: "s", text: x.s })),
-          x.href ? el("a", { class: "btn small", href: x.href, target: "_blank", rel: "noopener" }, x.a, el("span", { class: "sr", text: " (opens in a new tab)" })) : el("button", { type: "button", class: "btn small", onclick: x.act }, x.a));
-      }))) : null;
-    if (startHere && done < 4) out.push(startHere);
-
-    // This week
+    // This week's items.
+    const items = [];
     if (now) {
       const wp = weekPlan();
       const learn = ph.find((p) => p.id === "learn");
       const weekIdx = learn ? Math.floor((parseD(todayISO()) - learn.from) / (7 * DAY)) : 0;
-      const items = [];
       if (now.id === "learn") {
         const topics = wp.weeks[Math.min(weekIdx, wp.weeks.length - 1)] || [];
         items.push(...topics.map((t) => ({ sec: t.section, text: t.name, sub: S.byId[t.section].name, lesson: (L.byTopic[t.id] || [])[0] })));
@@ -365,27 +349,59 @@
         items.push({ sec: null, text: "Full-length practice test", sub: "4 h 15 min, same time of day as your real test", soon: true }, { sec: null, text: "Review every missed question", sub: "It takes as long as the test itself" });
         items.push(...weakest(2).map((t) => ({ sec: t.section, text: t.name, sub: "Weak spot from your tests", lesson: (L.byTopic[t.id] || [])[0] })));
       } else items.push({ sec: null, text: "Light review of your notes", sub: "30–60 minutes a day at most" }, { sec: null, text: "Pack two IDs and confirm the test center", sub: "Arrive 30 minutes early" }, { sec: null, text: "Sleep", sub: "It's worth more points than one more set" });
-      out.push(el("section", { class: "block" },
-        el("div", { class: "block-head" }, el("h2", { text: "This week" }), el("span", { class: "muted small", text: now.name })),
-        el("ul", { class: "rows" }, items.map((it) => {
-          const ls = it.lesson ? lessonState(it.lesson) : null;
-          return el("li", { class: "row-item" + (it.sec ? " c-" + it.sec : "") },
-            el("span", { class: "dot" + (it.sec ? "" : " plain") }),
-            el("div", { class: "grow" }, el("span", { class: "t", text: it.text }), el("span", { class: "s", text: it.sub })),
-            it.lesson ? el("button", { type: "button", class: "btn small" + (ls === "done" ? " ghost" : ""), onclick: () => go("learn", it.lesson.id) }, ls === "done" ? "Done ✓" : ls === "started" ? "Continue" : "Start")
-              : it.soon || it.sec ? el("span", { class: "chip", text: "Coming soon" }) : null);
-        }))));
     }
-    if (startHere && done >= 4) out.push(startHere);
+    const withLesson = items.filter((it) => it.lesson);
+    const doneN = withLesson.filter((it) => lessonState(it.lesson) === "done").length;
 
-    // Road to test day
-    if (ph) out.push(el("section", { class: "block" }, el("div", { class: "block-head" }, el("h2", { text: "Your road to test day" })),
+    // Main card: this week, with the one thing to do next.
+    const nx = nextLesson();
+    const card = el("section", { class: "card mission today-card", "aria-label": "This week" },
+      el("span", { class: "eyebrow", text: "This week" + (now ? " · " + now.name : "") }),
+      el("h2", { text: nx ? (lessonState(nx) === "started" ? "Pick up where you left off" : "Your next step") : L.list.length ? "You're caught up on lessons" : "Your plan" }),
+      withLesson.length ? el("div", { class: "today-meta" }, el("span", { text: doneN + " of " + plural(withLesson.length, "lesson") + " done" }), el("span", { text: "about " + st.hours + " hours this week" })) : null,
+      withLesson.length ? el("div", { class: "tmeter", "aria-hidden": "true" }, el("i", { style: "width:" + Math.round((doneN / withLesson.length) * 100) + "%" })) : null,
+      nx ? el("div", { class: "upnext c-" + nx.section },
+        el("span", { class: "eyebrow", text: "Up next · " + S.byId[nx.section].name + " · about " + nx.minutes + " min" }),
+        el("p", { class: "upnext-t", text: nx.title }),
+        el("p", { text: nx.intro }),
+        el("button", { type: "button", class: "btn primary", onclick: () => go("learn", nx.id) }, lessonVerb(nx)))
+        : L.list.length ? el("div", { class: "upnext" }, el("span", { class: "eyebrow", text: "Keep it fresh" }), el("p", { class: "upnext-t", text: "Practice what you've learned" }), el("p", { text: "Fresh questions every time, from every lesson you've finished." }), el("button", { type: "button", class: "btn primary", onclick: () => go("practice") }, "Practice")) : null,
+      items.length ? el("span", { class: "eyebrow then", text: "Then" }) : null,
+      items.length ? el("ul", { class: "tasks" }, items.map((it) => {
+        const ls = it.lesson ? lessonState(it.lesson) : null;
+        const label = it.lesson ? el("button", { type: "button", class: "tlink", onclick: () => go("learn", it.lesson.id) }, it.text, el("span", { class: "arr", "aria-hidden": "true", text: " →" }))
+          : el("span", { class: "t", text: it.text });
+        return el("li", { class: "task" + (ls === "done" ? " done" : "") + (it.sec ? " c-" + it.sec : "") },
+          el("span", { class: "bubble" + (ls === "done" ? " on" : "") + (it.soon ? " soon" : ""), "aria-hidden": "true", text: ls === "done" ? "✓" : "" }),
+          el("div", { class: "grow" }, label,
+            el("span", { class: "s" }, it.sec ? el("span", { class: "sdot" }) : null, it.sub, it.lesson ? el("span", { class: "tmin", text: it.lesson.minutes + " min" }) : it.soon ? el("span", { class: "tmin soon", text: "Coming soon" }) : null)));
+      })) : null,
+      items.some((it) => it.lesson) ? el("p", { class: "tiny muted", style: "margin:4px 0 0", text: "Lessons tick themselves when you finish them." }) : null);
+
+    // Side: getting started and the road to test day.
+    const isDone = (x) => (x.auto ? x.auto() : !!state.checks[x.id]);
+    const done = SETUP_STEPS.filter(isDone).length;
+    const side = el("div", { class: "today-side" });
+    if (done < SETUP_STEPS.length) side.append(el("section", { class: "card", "aria-label": "Start here" },
+      el("span", { class: "eyebrow", text: "Getting started · " + done + " of " + SETUP_STEPS.length }),
+      el("h2", { style: "margin:4px 0 6px", text: "Start here" }),
+      el("ul", { class: "tasks" }, SETUP_STEPS.map((x) => {
+        const d = isDone(x);
+        const bub = el("button", { type: "button", class: "bubble", "aria-pressed": String(d), disabled: !!x.auto, "aria-label": (d ? "Done: " : "Mark done: ") + x.t, title: x.auto ? "Ticks itself when you do it" : null,
+          onclick: () => { if (x.auto) return; if (state.checks[x.id]) delete state.checks[x.id]; else state.checks[x.id] = todayISO(); save(); render(); } }, d ? "✓" : "");
+        const go_ = x.href ? el("a", { class: "tlink", href: x.href, target: "_blank", rel: "noopener" }, x.t, el("span", { class: "arr", "aria-hidden": "true", text: " ↗" }), el("span", { class: "sr", text: " (opens in a new tab)" }))
+          : el("button", { type: "button", class: "tlink", onclick: x.act }, x.t, el("span", { class: "arr", "aria-hidden": "true", text: " →" }));
+        return el("li", { class: "task" + (d ? " done" : "") }, bub, el("div", { class: "grow" }, go_, el("span", { class: "s", text: x.s })));
+      }))));
+    if (ph) side.append(el("details", { class: "card fold", open: wide.matches },
+      el("summary", {}, "Your road to test day"),
       el("ol", { class: "road" }, ph.map((p) => {
         const t = parseD(todayISO()), cls = p === now ? "now" : t >= p.to ? "past" : "";
         return el("li", { class: cls, "aria-current": p === now ? "step" : null },
           el("div", { class: "row between" }, el("strong", { text: p.name }), el("span", { class: "tiny muted num", text: fmtD(p.from) + "–" + fmtD(new Date(p.to.getTime() - DAY)) })),
           el("div", { class: "muted small", text: p.desc }));
       }))));
+    out.push(el("div", { class: "today-grid" }, card, side));
     return out;
   }
   function weakest(n) {
@@ -492,14 +508,23 @@
   }
   function Me() {
     const st = state.settings;
-    const out = [el("h1", { text: st.name || "Me" })];
+    const out = [el("h1", { text: st.name || "Me" }), ME_NAV()];
+    if (view === "settings") return out.concat(Settings());
+    out.push(el("p", { class: "lede", text: "Your progress across lessons, practice and tests, and how strong each topic is." }));
+    return out.concat(Progress());
+  }
+  function Settings() {
+    const st = state.settings, out = [];
     out.push(el("section", { class: "block" },
       el("div", { class: "block-head" }, el("h2", { text: "Your test" }), el("button", { type: "button", class: "btn small", onclick: openSetup }, "Edit")),
       el("dl", { class: "facts" },
         el("dt", { text: "Test date" }), el("dd", { text: st.date ? fmtD(parseD(st.date), { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "Not set" }),
         el("dt", { text: "Target score" }), el("dd", { text: st.target ? String(st.target) : "Not set" }),
         el("dt", { text: "Study time" }), el("dd", { text: st.hours + " hours a week" }))));
-
+    return out.concat(SettingsRest());
+  }
+  function Progress() {
+    const out = [];
     // Activity: practice, tests and mistakes in one place.
     const pr = state.practice || [], ts = state.tests || [], qN = pr.reduce((a, p) => a + p.n, 0), qR = pr.reduce((a, p) => a + p.right, 0);
     const lastT = ts[ts.length - 1];
@@ -521,17 +546,16 @@
         const started = ms.filter((m) => m.v > 0).length;
         return el("details", { class: "skill c-" + s.id },
           el("summary", {}, el("span", { class: "dot" }), el("span", { class: "grow" }, el("span", { class: "t", text: s.name }), el("span", { class: "s", text: started + " of " + s.topics.length + " topics started" })),
-            el("span", { class: "bar", "aria-hidden": "true" }, el("i", { style: "width:" + avg + "%" })), el("span", { class: "pct num", text: started ? avg + "%" : "—" })),
+            el("span", { class: "bar", "aria-hidden": "true" }, el("i", { style: "width:" + avg + "%" })), started ? el("span", { class: "pct num", text: avg + "%" }) : el("span", { class: "nodata", text: "No data" })),
           el("ul", {}, s.topics.map((t, i) => el("li", {},
             el("span", { class: "grow" }, el("span", { class: "t", text: t.name }), el("span", { class: "s", text: ms[i].src })),
             el("span", { class: "bar", "aria-hidden": "true" }, el("i", { style: "width:" + ms[i].v + "%" })), el("span", { class: "pct num", text: ms[i].v ? ms[i].v + "%" : "—" })))));
       }))));
 
-    const nNotes = Object.values(state.notes).filter((n) => n && n.t && n.t.trim()).length;
-    out.push(el("button", { type: "button", class: "navrow standalone", onclick: () => go("notes") },
-      el("span", { class: "ico info", "aria-hidden": "true", text: "✎" }),
-      el("span", { class: "grow" }, el("span", { class: "t", text: "Notes" }), el("span", { class: "s", text: nNotes ? plural(nNotes, "page") + " with notes" : "Nothing yet" })), chev()));
-
+    return out;
+  }
+  function SettingsRest() {
+    const out = [];
     const file = el("input", { type: "file", accept: "application/json,.json", class: "sr", id: "restoreFile", onchange: () => restore(file) });
     out.push(el("section", { class: "block" }, el("div", { class: "block-head" }, el("h2", { text: "Backup" }), el("span", { class: "muted small", text: state.checks.backup ? "Last backup " + fmtD(parseD(state.checks.backup)) : "Never backed up" })),
       el("p", { class: "muted small", text: "Your progress is saved only in this browser. A backup file keeps it safe and moves it to another device." }),
